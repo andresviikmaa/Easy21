@@ -1,2 +1,2 @@
-# eazy21
+# Eazy21
 Reinforcement Learning Assignment: Easy21
