@@ -2,10 +2,236 @@
 <meta charset="utf-8">
 <link href="UI.css" rel="stylesheet">
 <body>
+<style>
+	.card {
+		position:absolute;
+		width:120px;
+		height:200px;
+		border: 1px solid black;
+		font-size: 2em;
+		padding: 6px;
+		border-radius: 9px;
+	}
+	.card.red {
+		border: 1px solid red;
+		color: red;
+	}
+	input.hint {
+		color:green;
+	}
+	input.play {
+	    position: absolute;
+		font-size: 4em;
+		padding: 10px 21px;
+		top: 538px;
+		left: 200px;
+		display:none;
+	}
+	input.play#stick {
+		left: 400px;
+	}
+	#dealer-sum, #player-sum {
+		-webkit-transform: rotate(-90deg);
+		position:absolute;
+		top: 139px;
+		font-family: Arial;
+		font-weight: bold;
+		color: green;
+		font-size: 1.5em;
+		display:none;
+	}
+	#player-sum {
+		top: 409px;
+	}
+	#result {
+		position: absolute;
+		font-family: sans-serif;
+		font-size: 3em;
+		color: cornflowerblue;
+		left: 239px;
+		top: 245px;
+	}
+	#start {
+		z-index:99;
+		font-size:3em;
+		position:absolute;
+		left: 230px;
+		top: 315px;
+		color: cornflowerblue;
+	}
+</style>
+
+<div id="buttons">
+	<input type="button" id="start" value="New Round" onclick="newRound();">
+	&nbsp;<input type="button" id="hit" class="play" value="Hit" onclick="hit();">
+	&nbsp;<input type="button" id="stick" class="play" value="Stick" onclick="stick();">
+</div>
+<div id="distate.playerlay">
+	<div id="result"></div>
+	<div id="dealer-sum"></div>
+	<div id="player-sum"></div>
+</div>
+<div id="table"></div>
+
+<a href="https://github.com/andresviikmaa/Easy21" target="_blank"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/652c5b9acfaddf3a9c326fa6bde407b87f7be0f4/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f6f72616e67655f6666373630302e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_orange_ff7600.png"></a>   
+
 <script src="https://d3js.org/d3.v3.js"></script>
 
 <script>
+var selectedNode = -1;
+var N = 0; //  number of cards dealt
+var ND = 0; // number of dealer cards
+var NP = 0; // number of player cards
+
+var state = {
+	dealer:0,
+	player:0
+}
+var width = 960,
+    height = 500;
+var delay = 1000;
+var force = d3.layout.force()
+    .size([width, height])
+    .linkDistance(60)
+    .gravity(0.1)
+    .charge(-600)
+    .on("tick", tick)
+    .start();
+
+var cards = force.nodes();
+var links = force.links();
+
+function newRound() {
+	cards.splice(0, cards.length)
+	table.selectAll("div").remove();
+	N = 0; ND = 0; NP = 0;
+
+	state.dealer = getCard(true, true); 
+	state.player = getCard(true, false);;
+
+	d3.select("#start").style("display","none");
+	d3.select("#hit").style("display","block");
+	d3.select("#stick").style("display","block");
+	d3.select("#player-sum").style("display","block");
+	d3.select("#dealer-sum").style("display","block");
+	hint();
+
+}
+function hit() {
+	state.player += getCard(false, false);
+	if (state.player > 21) {
+		d3.select("#hit").style("display","none");
+		d3.select("#stick").style("display","none");
+		finishGame();
+	} else {
+		hint();
+	}
+	
+}
+function stick() {
+	d3.select("#hit").style("display","none");
+	d3.select("#stick").style("display","none");
+	setTimeout(dealerPlay, 500);
+}
+function dealerPlay() {
+	state.dealer += getCard(false, true);
+	if(state.dealer < 17 && state.dealer < state.player) {
+		setTimeout(dealerPlay, 1000);
+	} else {
+		finishGame();
+	}
+}
+function finishGame() {
+	var result = "";
+	if (state.dealer > state.player || state.player > 21) {
+		result = "Dealer wins";
+	} else if (state.dealer < state.player) {
+		result = "Player wins";
+	} else {
+		result = "Draw";
+	}
+	d3.select("#result").html(result);
+	d3.select("#start").style("display","block");
+
+}
+
+function hint() {
+	var stick = step(state, 0);
+	var hit = step(state, 1);
+	console.log(stick, hit);
+	var doHit = (hit[1] > stick[1]);
+	d3.select("#result").html("You should "+ (doHit ? "Hit" : "Stick")+"!");
+	d3.select("#hit").attr("class", doHit ? "hint play" : " play");
+	d3.select("#stick").attr("class", !doHit ? "hint play" : " play");
+}
+var table =  d3.select("body").append("div").attr("id", "table");
+
+function tick(e) {
+
+    var k = e.alpha * 0.5;
+
+	for(var i in cards) {
+      cards[i].y += (cards[i].cy - cards[i].y) * k;
+      cards[i].x += (cards[i].cx - cards[i].x) * k;
+	}
+    table.selectAll("div.card")
+      .style('left', (d) => d.x + 'px')
+      .style('top', (d) => d.y + 'px')
+	  
+	d3.select("#dealer-sum").html("Sum: " + state.dealer);
+	d3.select("#player-sum").html("Sum: " + state.player);
+}
+function getCard(black, dealer) {
+	var color = black || Math.random() > 1/3 ? 'black' : 'red';
+	var suit = Math.random() > 1/2  ? (color == 'black' ? '♠': '♥') : (color == 'black' ? '♣':'♦')
+	var value = Math.floor(Math.random() * 10)+1;
+	var card = {
+		px: 400, 
+        cx: (dealer ? ND : NP)*160,
+		py: 600, 
+		cy: (dealer ? 0 : 1)*300,
+		color: color,
+		suit: suit,
+		value: value,
+		type: dealer ? "dealer" : 'player',
+		i: dealer ? ND : NP,
+		id: "card" + N
+	};
+
+    cards.push(card);
+    N++;
+	if(dealer) ND++; else NP++;
+    
+    table.append("div")
+      .data([card])
+      .html(card.suit + card.value )
+      .classed("card " + card.color + "  " + card.type, true)
+      .attr("id", card.id)
+      
+      
+    force.start();  
+	return value;
+}
+
+function step(s, a) {
+	var new_state = {dealer:s.dealer, player:s.player}; 
+	if(a == 0) { // stick
+		var dealer_sum = s.dealer;
+		while (dealer_sum < 17) {
+			dealer_sum += Math.floor(Math.random() * 10)+1;
+		}
+		var reward = 0;
+		if (dealer_sum > s.player) reward = -1;
+		if (dealer_sum < s.player) reward = 1;
+
+		return [null, reward]
+	} else { // hit
+		new_state.player += Math.floor(Math.random() * 10)+1;
+		if(new_state.player > 21) 
+			return [null, -1]
+		else
+			return [new_state, 0];
+	}
+}
 
 </script>
-<a href="https://github.com/andresviikmaa/Streaming-Minimum-Spanning-Tree" target="_blank"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/652c5b9acfaddf3a9c326fa6bde407b87f7be0f4/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f6f72616e67655f6666373630302e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_orange_ff7600.png"></a>   
-
