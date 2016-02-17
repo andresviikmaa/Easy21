@@ -158,9 +158,9 @@ function finishGame() {
 function hint() {
 	var stick = step(state, 0);
 	var hit = step(state, 1);
-	console.log(stick, hit);
-	var doHit = (hit[1] > stick[1]);
-	d3.select("#result").html("You should "+ (doHit ? "Hit" : "Stick")+"!");
+	console.log("stick", stick, "hit", hit);
+	var doHit = (hit[1] > 0 && hit[1] > stick[1]);
+	d3.select("#result").html("You should "+ (doHit ? "Hit" : "Stick")+"<br><small>(expected reward: Hit: "+Math.round(hit[1],2)+ ", Stick: " +Math.round(stick[1],2)+")</small>");
 	d3.select("#hit").attr("class", doHit ? "hint play" : " play");
 	d3.select("#stick").attr("class", !doHit ? "hint play" : " play");
 }
@@ -182,9 +182,9 @@ function tick(e) {
 	d3.select("#player-sum").html("Sum: " + state.player);
 }
 function getCard(black, dealer) {
-	var color = black || Math.random() > 1/3 ? 'black' : 'red';
+	var color = (black || Math.random() > 1/3) ? 'black' : 'red';
 	var suit = Math.random() > 1/2  ? (color == 'black' ? '♠': '♥') : (color == 'black' ? '♣':'♦')
-	var value = Math.floor(Math.random() * 10)+1;
+	var value = (Math.floor(Math.random() * 10)+1) * (color == 'black' ? 1: -1);
 	var card = {
 		px: 400, 
         cx: (dealer ? ND : NP)*160,
@@ -192,7 +192,7 @@ function getCard(black, dealer) {
 		cy: (dealer ? 0 : 1)*300,
 		color: color,
 		suit: suit,
-		value: value,
+		value: Math.abs(value),
 		type: dealer ? "dealer" : 'player',
 		i: dealer ? ND : NP,
 		id: "card" + N
@@ -212,8 +212,48 @@ function getCard(black, dealer) {
     force.start();  
 	return value;
 }
-
 function step(s, a) {
+	return stepAverage(s, a);
+}
+function play(sum) {
+	var average = 0;
+	for (var k=1; k < 11; k++) {
+		if (sum + k < 17) {
+			average += 0.1 * play(sum + k);
+		}
+		else {
+			average += 0.1 * (sum + k);
+		}
+	}
+	return average;
+}
+
+function stepAverage(s, a) {
+	var new_state = {dealer:s.dealer, player:s.player}; 
+	if(a == 0) { // stick
+		// dealer acts randomly
+		var dealer_sum = play(s.dealer);
+		console.log("dealer_sum", dealer_sum);
+		var reward = 0;
+		if (dealer_sum > s.player) reward = -1;
+		if (dealer_sum < s.player) reward = 1;
+
+		return [null, reward]
+	} else { // hit
+		var average = 0;
+		for (var k=1; k < 11; k++) {
+			average += 0.1 * ((new_state.player + k) > 21 ? -1 : 1);
+		}
+		console.log("average", average)
+		new_state.player += Math.floor(Math.random() * 10)+1;
+		if(new_state.player > 21) 
+			return [null, average]
+		else
+			return [new_state, average];
+	}
+}
+
+function stepRandom(s, a) {
 	var new_state = {dealer:s.dealer, player:s.player}; 
 	if(a == 0) { // stick
 		var dealer_sum = s.dealer;
